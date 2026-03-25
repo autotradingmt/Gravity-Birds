@@ -46,36 +46,15 @@ http://192.168.1.23:8015/
 
 Если нужна ссылка, которая открывается с любого Wi-Fi, проект можно выложить на `GitHub Pages` бесплатно.
 
-Что уже подготовлено:
+Для публикации используется статическая папка `docs/`, совместимая со стандартным Pages from branch.
 
-- workflow для публикации: `.github/workflows/deploy-pages.yml`
-- статический сайт берется прямо из папки `web/`
-
-Что нужно сделать дальше:
-
-1. Создать пустой репозиторий на GitHub, например `gravity-birds`.
-2. В этой папке выполнить:
-
-```bash
-cd /Users/foxsovich/Documents/gravity_birds_no_trail_153502
-git init
-git add .
-git commit -m "Initial Gravity Birds web release"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/gravity-birds.git
-git push -u origin main
-```
-
-3. На GitHub открыть `Settings -> Pages` и убедиться, что source = `GitHub Actions`.
-4. Подождать завершения workflow `Deploy Gravity Birds to GitHub Pages`.
-
-После этого ссылка обычно будет такой:
+Ссылка после публикации:
 
 ```text
-https://YOUR_USERNAME.github.io/gravity-birds/
+https://autotradingmt.github.io/Gravity-Birds/
 ```
 
-Важно: сейчас `web/index.html` загружает `matter.js` с CDN, поэтому для опубликованной версии у игроков должен быть доступ в интернет.
+Важно: сейчас браузерная версия загружает `matter.js` с CDN, поэтому для опубликованной версии у игроков должен быть доступ в интернет.
 
 ## Управление
 
