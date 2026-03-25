@@ -19,10 +19,35 @@ const MAX_FRAME_DELTA = 1000 / 30;
 const MAX_PHYSICS_STEPS = 4;
 
 const BIRDS = {
-  red: { label: "Red", color: "#dd594c", outline: "#7f231e", radius: 22, desc: "Базовая птица для точного удара." },
-  yellow: { label: "Chuck", color: "#f4c94f", outline: "#8b640b", radius: 20, desc: "Быстрее базовой птицы." },
-  blue: { label: "Blues", color: "#6cbef4", outline: "#21547f", radius: 18, desc: "Делится на три траектории в полете." },
-  black: { label: "Bomb", color: "#2f2c34", outline: "#b89253", radius: 24, desc: "Взрыв по сильному контакту с конструкцией." },
+  red: { label: "Rode Vogel", color: "#dd594c", outline: "#7f231e", radius: 22, desc: "De basisvogel voor een precieze treffer." },
+  yellow: { label: "Gele Vogel", color: "#f4c94f", outline: "#8b640b", radius: 20, desc: "Sneller dan de basisvogel." },
+  blue: { label: "Blauwe Drieling", color: "#6cbef4", outline: "#21547f", radius: 18, desc: "Splitst zich in drie banen tijdens de vlucht." },
+  black: { label: "Bomvogel", color: "#2f2c34", outline: "#b89253", radius: 24, desc: "Ontploft bij een harde botsing met de constructie." },
+};
+
+const STRINGS = {
+  mute: "Dempen",
+  unmute: "Dempen uit",
+  passed: "✓ Voltooid",
+  notCleared: "○ Niet voltooid",
+  level: "Level",
+  gravityLabel: "zwaartekrachtsversnelling omlaag",
+  birdOrder: "Volgorde van vogels",
+  continue: "Doorgaan",
+  restart: "Opnieuw",
+  retry: "Opnieuw",
+  nextBirdReady: "Volgende vogel klaar.",
+  noBirdsLeft: "Geen vogels meer over.",
+  pullBack: "Trek terug en lanceer.",
+  finalCollapse: "Laatste instorting komt tot rust...",
+  allCleared: "Alle varkens zijn uitgeschakeld.",
+  outOfBirds: "Geen vogels meer over.",
+  victoryEyebrow: "Overwinning",
+  victoryTitle: "Level voltooid",
+  victoryText: "Ga door naar het volgende zwaartekrachtveld.",
+  retryEyebrow: "Opnieuw",
+  retryTitle: "Missie mislukt",
+  retryText: "Begin opnieuw en probeer een andere hoek.",
 };
 
 const MATERIALS = {
@@ -34,8 +59,9 @@ const MATERIALS = {
 const LEVELS = [
   {
     id: 1,
-    planet: "Moon",
+    planet: "Maan",
     gravity: 280,
+    gravityMs2: 1.62,
     birds: ["red", "blue", "yellow", "black"],
     palette: { skyTop: "#0d1731", skyBottom: "#5f89bb", dust: "#e8d0ad" },
     blocks: [
@@ -55,6 +81,7 @@ const LEVELS = [
     id: 2,
     planet: "Mars",
     gravity: 420,
+    gravityMs2: 3.71,
     birds: ["red", "yellow", "blue", "black"],
     palette: { skyTop: "#4e2117", skyBottom: "#d97a49", dust: "#efc28f" },
     blocks: [
@@ -79,8 +106,9 @@ const LEVELS = [
   },
   {
     id: 3,
-    planet: "Earth",
+    planet: "Aarde",
     gravity: 560,
+    gravityMs2: 9.81,
     birds: ["red", "yellow", "blue", "black", "red"],
     palette: { skyTop: "#255c97", skyBottom: "#b2d8f2", dust: "#e8d6a2" },
     blocks: [
@@ -104,8 +132,9 @@ const LEVELS = [
   },
   {
     id: 4,
-    planet: "Mercury",
+    planet: "Mercurius",
     gravity: 690,
+    gravityMs2: 3.7,
     birds: ["yellow", "blue", "black", "yellow", "red"],
     palette: { skyTop: "#684130", skyBottom: "#eaad71", dust: "#f7d49d" },
     blocks: [
@@ -133,6 +162,7 @@ const LEVELS = [
     id: 5,
     planet: "Jupiter",
     gravity: 860,
+    gravityMs2: 24.79,
     birds: ["yellow", "blue", "black", "red", "yellow", "black"],
     palette: { skyTop: "#3d252d", skyBottom: "#c08a72", dust: "#f2d8b8" },
     blocks: [
@@ -275,7 +305,7 @@ function applyAudioSettings() {
   }
   volumeSlider.value = String(Math.round(settings.volume * 100));
   volumeValue.textContent = `${Math.round(settings.volume * 100)}%`;
-  muteBtn.textContent = settings.muted ? "Unmute" : "Mute";
+  muteBtn.textContent = settings.muted ? STRINGS.unmute : STRINGS.mute;
 }
 
 function playTone(freq, duration, type = "triangle", volume = 0.16, slideTo = null) {
@@ -403,22 +433,22 @@ function rebuildLevelCards() {
     card.className = `level-card ${cleared ? "level-card-cleared" : "level-card-pending"}`;
     card.innerHTML = `
       <div class="level-state ${cleared ? "level-state-cleared" : "level-state-pending"}">
-        ${cleared ? "✓ Passed" : "○ Not cleared"}
+        ${cleared ? STRINGS.passed : STRINGS.notCleared}
       </div>
       <div class="level-top">
         <div class="orb" style="background:${level.palette.dust}"></div>
         <div>
-          <div class="eyebrow">Level ${index + 1}</div>
+          <div class="eyebrow">${STRINGS.level} ${index + 1}</div>
           <h3>${level.planet}</h3>
         </div>
       </div>
       <div class="metric">
-        <strong>g = ${level.gravity} px/s²</strong>
-        <span>ускорение свободного падения вниз</span>
+        <strong>g = ${level.gravityMs2.toFixed(2)} m/s²</strong>
+        <span>${STRINGS.gravityLabel}</span>
       </div>
       <div class="metric">
-        <strong>Bird order</strong>
-        <span>${level.birds.join(", ")}</span>
+        <strong>${STRINGS.birdOrder}</strong>
+        <span>${level.birds.map((birdType) => BIRDS[birdType].label).join(", ")}</span>
       </div>
     `;
     card.addEventListener("click", () => startLevel(index));
@@ -454,7 +484,7 @@ function showOverlay(eyebrow, title, text) {
   overlayEyebrow.textContent = eyebrow;
   overlayTitle.textContent = title;
   overlayText.textContent = text;
-  overlayBtn.textContent = eyebrow === "Retry" ? "Restart" : "Continue";
+  overlayBtn.textContent = eyebrow === STRINGS.retryEyebrow ? STRINGS.restart : STRINGS.continue;
   overlay.classList.remove("hidden");
 }
 
@@ -571,7 +601,7 @@ function createWorld(levelIndex) {
     particles: [],
     aiming: false,
     drag: vec(SLING.x, SLING.y),
-    status: "Pull back and fire.",
+    status: STRINGS.pullBack,
     outcome: null,
     clearTimer: 0,
     structuresAwake: false,
@@ -599,7 +629,7 @@ function wakeStructures(world) {
 function refreshHud() {
   if (!state.world) return;
   hudLevel.textContent = state.world.level.planet;
-  hudGravity.textContent = `g = ${state.world.level.gravity} px/s², ускорение свободного падения вниз`;
+  hudGravity.textContent = `g = ${state.world.level.gravityMs2.toFixed(2)} m/s², ${STRINGS.gravityLabel}`;
   hudStatus.textContent = state.world.status;
   birdStack.innerHTML = "";
   state.world.birdsQueue.forEach((birdType) => {
@@ -1047,7 +1077,7 @@ function updateBirdState(world, dt) {
     bird.removed = true;
     Composite.remove(world.engine.world, bird.body);
     world.activeBird = null;
-    world.status = world.birdsQueue.length ? "Next bird ready." : "No birds left.";
+    world.status = world.birdsQueue.length ? STRINGS.nextBirdReady : STRINGS.noBirdsLeft;
     refreshHud();
   }
 }
@@ -1157,23 +1187,23 @@ function checkOutcome(world) {
   if (pigsLeft === 0 && !world.outcome) {
     world.clearTimer += world.lastDeltaMs / 1000;
     if (world.clearTimer === world.lastDeltaMs / 1000) {
-      world.status = "Final collapse settling...";
+      world.status = STRINGS.finalCollapse;
       refreshHud();
     }
     if (world.clearTimer > 0.35 && (!hasSceneMotion(world) || world.clearTimer > 0.9)) {
       saveLevelProgress(world.level.id);
       rebuildLevelCards();
       world.outcome = "win";
-      world.status = "All piggies cleared.";
+      world.status = STRINGS.allCleared;
       refreshHud();
       playWinSound();
-      showOverlay("Victory", "Level cleared", "Continue to the next gravity field.");
+      showOverlay(STRINGS.victoryEyebrow, STRINGS.victoryTitle, STRINGS.victoryText);
     }
   } else if (!world.activeBird && world.extraBirds.length === 0 && !world.birdsQueue.length && !world.outcome) {
     world.outcome = "lose";
-    world.status = "Out of birds.";
+    world.status = STRINGS.outOfBirds;
     refreshHud();
-    showOverlay("Retry", "Mission failed", "Restart and try a different angle.");
+    showOverlay(STRINGS.retryEyebrow, STRINGS.retryTitle, STRINGS.retryText);
   } else {
     world.clearTimer = 0;
   }
