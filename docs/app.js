@@ -8,21 +8,80 @@ const {
   Sleeping,
 } = Matter;
 
-const DESIGN_WIDTH = 1920;
-const DESIGN_HEIGHT = 1080;
-const FLOOR_Y = 930;
-const SLING = { x: 272, y: 775 };
-const MAX_PULL = 132;
+const BASE_WIDTH = 1920;
+const BASE_HEIGHT = 1080;
+const DESIGN_WIDTH = 1366;
+const DESIGN_HEIGHT = 768;
+const WORLD_SCALE = DESIGN_WIDTH / BASE_WIDTH;
+const FLOOR_Y = Math.round(930 * WORLD_SCALE);
+const SLING = { x: Math.round(272 * WORLD_SCALE), y: Math.round(775 * WORLD_SCALE) };
+const MAX_PULL = 132 * WORLD_SCALE;
 const LAUNCH_SCALE = 0.19;
 const FIXED_STEP_MS = 1000 / 90;
 const MAX_FRAME_DELTA = 1000 / 30;
 const MAX_PHYSICS_STEPS = 4;
 
+function scaleX(value) {
+  return Math.round(value * (DESIGN_WIDTH / BASE_WIDTH));
+}
+
+function scaleY(value) {
+  return Math.round(value * (DESIGN_HEIGHT / BASE_HEIGHT));
+}
+
+function scaleSize(value) {
+  return Math.max(1, Math.round(value * WORLD_SCALE));
+}
+
+function scaleLevel(level) {
+  return {
+    ...level,
+    gravity: level.gravity * WORLD_SCALE,
+    blocks: level.blocks.map(([material, x, y, w, h]) => [
+      material,
+      scaleX(x),
+      scaleY(y),
+      scaleSize(w),
+      scaleSize(h),
+    ]),
+    pigs: level.pigs.map((pig) => ({
+      ...pig,
+      x: scaleX(pig.x),
+      y: scaleY(pig.y),
+    })),
+  };
+}
+
 const BIRDS = {
-  red: { label: "Red", color: "#dd594c", outline: "#7f231e", radius: 22, desc: "Базовая птица для точного удара." },
-  yellow: { label: "Chuck", color: "#f4c94f", outline: "#8b640b", radius: 20, desc: "Быстрее базовой птицы." },
-  blue: { label: "Blues", color: "#6cbef4", outline: "#21547f", radius: 18, desc: "Делится на три траектории в полете." },
-  black: { label: "Bomb", color: "#2f2c34", outline: "#b89253", radius: 24, desc: "Взрыв по сильному контакту с конструкцией." },
+  red: { label: "Rode Vogel", color: "#dd594c", outline: "#7f231e", radius: scaleSize(22), desc: "De basisvogel voor een precieze treffer." },
+  yellow: { label: "Gele Vogel", color: "#f4c94f", outline: "#8b640b", radius: scaleSize(20), desc: "Sneller dan de basisvogel." },
+  blue: { label: "Blauwe Drieling", color: "#6cbef4", outline: "#21547f", radius: scaleSize(18), desc: "Splitst zich in drie banen tijdens de vlucht." },
+  black: { label: "Bomvogel", color: "#2f2c34", outline: "#b89253", radius: scaleSize(24), desc: "Ontploft bij een harde botsing met de constructie." },
+};
+
+const STRINGS = {
+  mute: "Dempen",
+  unmute: "Dempen uit",
+  passed: "✓ Voltooid",
+  notCleared: "○ Niet voltooid",
+  level: "Level",
+  gravityLabel: "zwaartekrachtsversnelling omlaag",
+  birdOrder: "Volgorde van vogels",
+  continue: "Doorgaan",
+  restart: "Opnieuw",
+  retry: "Opnieuw",
+  nextBirdReady: "Volgende vogel klaar.",
+  noBirdsLeft: "Geen vogels meer over.",
+  pullBack: "Trek terug en lanceer.",
+  finalCollapse: "Laatste instorting komt tot rust...",
+  allCleared: "Alle varkens zijn uitgeschakeld.",
+  outOfBirds: "Geen vogels meer over.",
+  victoryEyebrow: "Overwinning",
+  victoryTitle: "Level voltooid",
+  victoryText: "Ga door naar het volgende zwaartekrachtveld.",
+  retryEyebrow: "Opnieuw",
+  retryTitle: "Missie mislukt",
+  retryText: "Begin opnieuw en probeer een andere hoek.",
 };
 
 const MATERIALS = {
@@ -34,8 +93,9 @@ const MATERIALS = {
 const LEVELS = [
   {
     id: 1,
-    planet: "Moon",
+    planet: "Maan",
     gravity: 280,
+    gravityMs2: 1.62,
     birds: ["red", "blue", "yellow", "black"],
     palette: { skyTop: "#0d1731", skyBottom: "#5f89bb", dust: "#e8d0ad" },
     blocks: [
@@ -55,6 +115,7 @@ const LEVELS = [
     id: 2,
     planet: "Mars",
     gravity: 420,
+    gravityMs2: 3.71,
     birds: ["red", "yellow", "blue", "black"],
     palette: { skyTop: "#4e2117", skyBottom: "#d97a49", dust: "#efc28f" },
     blocks: [
@@ -79,8 +140,9 @@ const LEVELS = [
   },
   {
     id: 3,
-    planet: "Earth",
+    planet: "Aarde",
     gravity: 560,
+    gravityMs2: 9.81,
     birds: ["red", "yellow", "blue", "black", "red"],
     palette: { skyTop: "#255c97", skyBottom: "#b2d8f2", dust: "#e8d6a2" },
     blocks: [
@@ -104,8 +166,9 @@ const LEVELS = [
   },
   {
     id: 4,
-    planet: "Mercury",
+    planet: "Mercurius",
     gravity: 690,
+    gravityMs2: 3.7,
     birds: ["yellow", "blue", "black", "yellow", "red"],
     palette: { skyTop: "#684130", skyBottom: "#eaad71", dust: "#f7d49d" },
     blocks: [
@@ -133,6 +196,7 @@ const LEVELS = [
     id: 5,
     planet: "Jupiter",
     gravity: 860,
+    gravityMs2: 24.79,
     birds: ["yellow", "blue", "black", "red", "yellow", "black"],
     palette: { skyTop: "#3d252d", skyBottom: "#c08a72", dust: "#f2d8b8" },
     blocks: [
@@ -275,7 +339,7 @@ function applyAudioSettings() {
   }
   volumeSlider.value = String(Math.round(settings.volume * 100));
   volumeValue.textContent = `${Math.round(settings.volume * 100)}%`;
-  muteBtn.textContent = settings.muted ? "Unmute" : "Mute";
+  muteBtn.textContent = settings.muted ? STRINGS.unmute : STRINGS.mute;
 }
 
 function playTone(freq, duration, type = "triangle", volume = 0.16, slideTo = null) {
@@ -403,22 +467,22 @@ function rebuildLevelCards() {
     card.className = `level-card ${cleared ? "level-card-cleared" : "level-card-pending"}`;
     card.innerHTML = `
       <div class="level-state ${cleared ? "level-state-cleared" : "level-state-pending"}">
-        ${cleared ? "✓ Passed" : "○ Not cleared"}
+        ${cleared ? STRINGS.passed : STRINGS.notCleared}
       </div>
       <div class="level-top">
         <div class="orb" style="background:${level.palette.dust}"></div>
         <div>
-          <div class="eyebrow">Level ${index + 1}</div>
+          <div class="eyebrow">${STRINGS.level} ${index + 1}</div>
           <h3>${level.planet}</h3>
         </div>
       </div>
       <div class="metric">
-        <strong>g = ${level.gravity} px/s²</strong>
-        <span>ускорение свободного падения вниз</span>
+        <strong>g = ${level.gravityMs2.toFixed(2)} m/s²</strong>
+        <span>${STRINGS.gravityLabel}</span>
       </div>
       <div class="metric">
-        <strong>Bird order</strong>
-        <span>${level.birds.join(", ")}</span>
+        <strong>${STRINGS.birdOrder}</strong>
+        <span>${level.birds.map((birdType) => BIRDS[birdType].label).join(", ")}</span>
       </div>
     `;
     card.addEventListener("click", () => startLevel(index));
@@ -454,7 +518,7 @@ function showOverlay(eyebrow, title, text) {
   overlayEyebrow.textContent = eyebrow;
   overlayTitle.textContent = title;
   overlayText.textContent = text;
-  overlayBtn.textContent = eyebrow === "Retry" ? "Restart" : "Continue";
+  overlayBtn.textContent = eyebrow === STRINGS.retryEyebrow ? STRINGS.restart : STRINGS.continue;
   overlay.classList.remove("hidden");
 }
 
@@ -487,7 +551,8 @@ function createBlockEntity(material, x, y, w, h, index) {
 }
 
 function createPigEntity(x, y, helmet, index) {
-  const body = Bodies.circle(x, y, 22, {
+  const radius = scaleSize(22);
+  const body = Bodies.circle(x, y, radius, {
     friction: 0.16,
     restitution: 0.08,
     density: helmet ? 0.0013 : 0.001,
@@ -499,7 +564,7 @@ function createPigEntity(x, y, helmet, index) {
     kind: "pig",
     id: `pig-${index}`,
     body,
-    r: 22,
+    r: radius,
     helmet,
     hp: helmet ? 2.5 : 1.3,
     removed: false,
@@ -529,7 +594,7 @@ function createBounds() {
 }
 
 function createWorld(levelIndex) {
-  const level = LEVELS[levelIndex];
+  const level = scaleLevel(LEVELS[levelIndex]);
   const engine = Engine.create({
     enableSleeping: true,
     positionIterations: 5,
@@ -571,7 +636,7 @@ function createWorld(levelIndex) {
     particles: [],
     aiming: false,
     drag: vec(SLING.x, SLING.y),
-    status: "Pull back and fire.",
+    status: STRINGS.pullBack,
     outcome: null,
     clearTimer: 0,
     structuresAwake: false,
@@ -599,7 +664,7 @@ function wakeStructures(world) {
 function refreshHud() {
   if (!state.world) return;
   hudLevel.textContent = state.world.level.planet;
-  hudGravity.textContent = `g = ${state.world.level.gravity} px/s², ускорение свободного падения вниз`;
+  hudGravity.textContent = `g = ${state.world.level.gravityMs2.toFixed(2)} m/s², ${STRINGS.gravityLabel}`;
   hudStatus.textContent = state.world.status;
   birdStack.innerHTML = "";
   state.world.birdsQueue.forEach((birdType) => {
@@ -702,8 +767,9 @@ function explodeBird(world, bird) {
     const dx = block.body.position.x - bird.body.position.x;
     const dy = block.body.position.y - bird.body.position.y;
     const dist = Math.hypot(dx, dy);
-    if (dist > 180) return;
-    const impact = 1 - dist / 180;
+    const explosionRadius = scaleSize(180);
+    if (dist > explosionRadius) return;
+    const impact = 1 - dist / explosionRadius;
     const dir = normalize({ x: dx || 1, y: dy || -0.2 });
     Body.applyForce(block.body, block.body.position, {
       x: dir.x * 0.02 * impact,
@@ -716,8 +782,9 @@ function explodeBird(world, bird) {
     const dx = pig.body.position.x - bird.body.position.x;
     const dy = pig.body.position.y - bird.body.position.y;
     const dist = Math.hypot(dx, dy);
-    if (dist > 170) return;
-    const impact = 1 - dist / 170;
+    const pigExplosionRadius = scaleSize(170);
+    if (dist > pigExplosionRadius) return;
+    const impact = 1 - dist / pigExplosionRadius;
     Body.applyForce(pig.body, pig.body.position, {
       x: dx * 0.00015 * impact,
       y: dy * 0.00015 * impact,
@@ -737,7 +804,8 @@ function splitBlueBird(world, bird) {
   bird.splitDone = true;
   [-0.18, 0.18].forEach((angle) => {
     const vel = rotate(bird.body.velocity, angle);
-    const body = Bodies.circle(bird.body.position.x, bird.body.position.y, 11, {
+    const childRadius = scaleSize(11);
+    const body = Bodies.circle(bird.body.position.x, bird.body.position.y, childRadius, {
       friction: 0.02,
       restitution: 0.1,
       density: 0.00075,
@@ -748,7 +816,7 @@ function splitBlueBird(world, bird) {
       kind: "bird",
       type: "blue",
       body,
-      r: 11,
+      r: childRadius,
       life: 0,
       splitDone: true,
       boosted: true,
@@ -1037,9 +1105,9 @@ function updateBirdState(world, dt) {
   }
 
   if (
-    bird.body.position.y > 1300 ||
-    bird.body.position.x > 2300 ||
-    bird.body.position.x < -200 ||
+    bird.body.position.y > scaleY(1300) ||
+    bird.body.position.x > scaleX(2300) ||
+    bird.body.position.x < -scaleX(200) ||
     (bird.impact && bird.body.speed < 1.5 && bird.life > 0.22) ||
     (bird.stuckTime ?? 0) > 0.16 ||
     (bird.groundTime ?? 0) > 0.12
@@ -1047,7 +1115,7 @@ function updateBirdState(world, dt) {
     bird.removed = true;
     Composite.remove(world.engine.world, bird.body);
     world.activeBird = null;
-    world.status = world.birdsQueue.length ? "Next bird ready." : "No birds left.";
+    world.status = world.birdsQueue.length ? STRINGS.nextBirdReady : STRINGS.noBirdsLeft;
     refreshHud();
   }
 }
@@ -1062,9 +1130,9 @@ function updateExtraBirdState(world, dt) {
     if ((touchedGround || touchedWall) && bird.life > 0.1) bird.groundTime = (bird.groundTime ?? 0) + dt;
     else bird.groundTime = 0;
     if (
-      bird.body.position.y > 1300 ||
-      bird.body.position.x > 2300 ||
-      bird.body.position.x < -200 ||
+      bird.body.position.y > scaleY(1300) ||
+      bird.body.position.x > scaleX(2300) ||
+      bird.body.position.x < -scaleX(200) ||
       (bird.impact && bird.body.speed < 1.2 && bird.life > 0.2) ||
       (bird.stuckTime ?? 0) > 0.14 ||
       (bird.groundTime ?? 0) > 0.1
@@ -1157,23 +1225,23 @@ function checkOutcome(world) {
   if (pigsLeft === 0 && !world.outcome) {
     world.clearTimer += world.lastDeltaMs / 1000;
     if (world.clearTimer === world.lastDeltaMs / 1000) {
-      world.status = "Final collapse settling...";
+      world.status = STRINGS.finalCollapse;
       refreshHud();
     }
     if (world.clearTimer > 0.35 && (!hasSceneMotion(world) || world.clearTimer > 0.9)) {
       saveLevelProgress(world.level.id);
       rebuildLevelCards();
       world.outcome = "win";
-      world.status = "All piggies cleared.";
+      world.status = STRINGS.allCleared;
       refreshHud();
       playWinSound();
-      showOverlay("Victory", "Level cleared", "Continue to the next gravity field.");
+      showOverlay(STRINGS.victoryEyebrow, STRINGS.victoryTitle, STRINGS.victoryText);
     }
   } else if (!world.activeBird && world.extraBirds.length === 0 && !world.birdsQueue.length && !world.outcome) {
     world.outcome = "lose";
-    world.status = "Out of birds.";
+    world.status = STRINGS.outOfBirds;
     refreshHud();
-    showOverlay("Retry", "Mission failed", "Restart and try a different angle.");
+    showOverlay(STRINGS.retryEyebrow, STRINGS.retryTitle, STRINGS.retryText);
   } else {
     world.clearTimer = 0;
   }
@@ -1213,36 +1281,36 @@ function drawBackground(level) {
 
   ctx.fillStyle = "rgba(255,255,255,0.08)";
   ctx.beginPath();
-  ctx.ellipse(260, 170, 180, 42, 0, 0, Math.PI * 2);
-  ctx.ellipse(620, 220, 140, 34, 0, 0, Math.PI * 2);
-  ctx.ellipse(1040, 130, 220, 52, 0, 0, Math.PI * 2);
+  ctx.ellipse(scaleX(260), scaleY(170), scaleSize(180), scaleSize(42), 0, 0, Math.PI * 2);
+  ctx.ellipse(scaleX(620), scaleY(220), scaleSize(140), scaleSize(34), 0, 0, Math.PI * 2);
+  ctx.ellipse(scaleX(1040), scaleY(130), scaleSize(220), scaleSize(52), 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = level.palette.dust;
   ctx.beginPath();
-  ctx.arc(1580, 160, 100, 0, Math.PI * 2);
+  ctx.arc(scaleX(1580), scaleY(160), scaleSize(100), 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "rgba(255,255,255,0.26)";
-  ctx.lineWidth = 6;
+  ctx.lineWidth = scaleSize(6);
   ctx.stroke();
 
   ctx.fillStyle = "rgba(23, 33, 54, 0.18)";
   ctx.beginPath();
-  ctx.moveTo(-80, FLOOR_Y);
-  ctx.lineTo(180, 700);
-  ctx.lineTo(390, FLOOR_Y);
+  ctx.moveTo(-scaleX(80), FLOOR_Y);
+  ctx.lineTo(scaleX(180), scaleY(700));
+  ctx.lineTo(scaleX(390), FLOOR_Y);
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(210, FLOOR_Y);
-  ctx.lineTo(520, 640);
-  ctx.lineTo(920, FLOOR_Y);
+  ctx.moveTo(scaleX(210), FLOOR_Y);
+  ctx.lineTo(scaleX(520), scaleY(640));
+  ctx.lineTo(scaleX(920), FLOOR_Y);
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(840, FLOOR_Y);
-  ctx.lineTo(1230, 680);
-  ctx.lineTo(1580, FLOOR_Y);
+  ctx.moveTo(scaleX(840), FLOOR_Y);
+  ctx.lineTo(scaleX(1230), scaleY(680));
+  ctx.lineTo(scaleX(1580), FLOOR_Y);
   ctx.closePath();
   ctx.fill();
 
@@ -1252,11 +1320,11 @@ function drawBackground(level) {
   ctx.fillStyle = groundGrad;
   ctx.fillRect(0, FLOOR_Y, DESIGN_WIDTH, DESIGN_HEIGHT - FLOOR_Y);
   ctx.fillStyle = "#c39867";
-  ctx.fillRect(0, FLOOR_Y, DESIGN_WIDTH, 22);
+  ctx.fillRect(0, FLOOR_Y, DESIGN_WIDTH, scaleSize(22));
   ctx.fillStyle = "rgba(241, 217, 178, 0.22)";
-  for (let x = -20; x < DESIGN_WIDTH + 60; x += 86) {
+  for (let x = -scaleX(20); x < DESIGN_WIDTH + scaleX(60); x += scaleSize(86)) {
     ctx.beginPath();
-    ctx.arc(x, FLOOR_Y + 10, 18, 0, Math.PI * 2);
+    ctx.arc(x, FLOOR_Y + scaleSize(10), scaleSize(18), 0, Math.PI * 2);
     ctx.fill();
   }
 }
@@ -1270,21 +1338,21 @@ function drawMenuBackdrop() {
 
   ctx.fillStyle = "rgba(255,255,255,0.06)";
   ctx.beginPath();
-  ctx.ellipse(310, 180, 240, 56, 0, 0, Math.PI * 2);
-  ctx.ellipse(1090, 160, 290, 62, 0, 0, Math.PI * 2);
+  ctx.ellipse(scaleX(310), scaleY(180), scaleSize(240), scaleSize(56), 0, 0, Math.PI * 2);
+  ctx.ellipse(scaleX(1090), scaleY(160), scaleSize(290), scaleSize(62), 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = "rgba(0,0,0,0.16)";
   ctx.beginPath();
-  ctx.moveTo(-120, DESIGN_HEIGHT);
-  ctx.lineTo(220, 700);
-  ctx.lineTo(560, DESIGN_HEIGHT);
+  ctx.moveTo(-scaleX(120), DESIGN_HEIGHT);
+  ctx.lineTo(scaleX(220), scaleY(700));
+  ctx.lineTo(scaleX(560), DESIGN_HEIGHT);
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(420, DESIGN_HEIGHT);
-  ctx.lineTo(860, 620);
-  ctx.lineTo(1320, DESIGN_HEIGHT);
+  ctx.moveTo(scaleX(420), DESIGN_HEIGHT);
+  ctx.lineTo(scaleX(860), scaleY(620));
+  ctx.lineTo(scaleX(1320), DESIGN_HEIGHT);
   ctx.closePath();
   ctx.fill();
 }
@@ -1293,46 +1361,46 @@ function drawSlingshot(world) {
   const pull = world.aiming ? world.drag : vec(SLING.x, SLING.y);
   ctx.lineCap = "round";
   ctx.strokeStyle = "#4a2613";
-  ctx.lineWidth = 14;
+  ctx.lineWidth = scaleSize(14);
   ctx.beginPath();
-  ctx.moveTo(SLING.x - 56, SLING.y + 22);
-  ctx.lineTo(SLING.x - 6, SLING.y + 8);
+  ctx.moveTo(SLING.x - scaleX(56), SLING.y + scaleY(22));
+  ctx.lineTo(SLING.x - scaleX(6), SLING.y + scaleY(8));
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(SLING.x + 2, SLING.y + 170);
-  ctx.lineTo(SLING.x + 2, SLING.y - 30);
+  ctx.moveTo(SLING.x + scaleX(2), SLING.y + scaleY(170));
+  ctx.lineTo(SLING.x + scaleX(2), SLING.y - scaleY(30));
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(SLING.x + 2, SLING.y + 18);
-  ctx.lineTo(SLING.x + 34, SLING.y - 118);
+  ctx.moveTo(SLING.x + scaleX(2), SLING.y + scaleY(18));
+  ctx.lineTo(SLING.x + scaleX(34), SLING.y - scaleY(118));
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(SLING.x + 8, SLING.y + 22);
-  ctx.lineTo(SLING.x + 92, SLING.y - 114);
+  ctx.moveTo(SLING.x + scaleX(8), SLING.y + scaleY(22));
+  ctx.lineTo(SLING.x + scaleX(92), SLING.y - scaleY(114));
   ctx.stroke();
 
   ctx.strokeStyle = "#cf965e";
-  ctx.lineWidth = 5;
+  ctx.lineWidth = scaleSize(5);
   ctx.beginPath();
-  ctx.moveTo(SLING.x + 8, SLING.y + 162);
-  ctx.lineTo(SLING.x + 8, SLING.y - 42);
+  ctx.moveTo(SLING.x + scaleX(8), SLING.y + scaleY(162));
+  ctx.lineTo(SLING.x + scaleX(8), SLING.y - scaleY(42));
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(SLING.x + 12, SLING.y + 10);
-  ctx.lineTo(SLING.x + 38, SLING.y - 108);
+  ctx.moveTo(SLING.x + scaleX(12), SLING.y + scaleY(10));
+  ctx.lineTo(SLING.x + scaleX(38), SLING.y - scaleY(108));
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(SLING.x + 16, SLING.y + 16);
-  ctx.lineTo(SLING.x + 84, SLING.y - 106);
+  ctx.moveTo(SLING.x + scaleX(16), SLING.y + scaleY(16));
+  ctx.lineTo(SLING.x + scaleX(84), SLING.y - scaleY(106));
   ctx.stroke();
 
-  const leftAnchor = vec(SLING.x + 34, SLING.y - 118);
-  const rightAnchor = vec(SLING.x + 92, SLING.y - 114);
+  const leftAnchor = vec(SLING.x + scaleX(34), SLING.y - scaleY(118));
+  const rightAnchor = vec(SLING.x + scaleX(92), SLING.y - scaleY(114));
   ctx.strokeStyle = "#3d2013";
-  ctx.lineWidth = 5;
+  ctx.lineWidth = scaleSize(5);
   ctx.beginPath();
   ctx.moveTo(leftAnchor.x, leftAnchor.y);
   ctx.lineTo(pull.x, pull.y);
@@ -1342,7 +1410,7 @@ function drawSlingshot(world) {
   ctx.lineTo(pull.x, pull.y);
   ctx.stroke();
   ctx.fillStyle = "#7b4d30";
-  roundRect(ctx, pull.x - 16, pull.y - 9, 32, 18, 6);
+  roundRect(ctx, pull.x - scaleSize(16), pull.y - scaleSize(9), scaleSize(32), scaleSize(18), scaleSize(6));
   ctx.fill();
 }
 
@@ -1587,7 +1655,7 @@ function onPointerDown(event) {
   }
 
   if (state.world.activeBird || !state.world.birdsQueue.length) return;
-  if (Math.hypot(p.x - SLING.x, p.y - SLING.y) <= 92) {
+  if (Math.hypot(p.x - SLING.x, p.y - SLING.y) <= scaleSize(92)) {
     state.world.aiming = true;
     state.world.drag = p;
   }
